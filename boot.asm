@@ -5,7 +5,7 @@
 	BaseOfStack equ 0x7c00
 	BaseOfLoader equ 0x1000
 	OffSetOfLoader equ 0x00
-	RootDirSectors equ 14
+	RootDirSectorsNum equ 14
 	RootDirStartSectors equ 19
 	FAT1StartSectors equ 1
 	SectorsBanlance equ 17
@@ -36,7 +36,7 @@
 	
 	; Some variable
 	StartMessage db 'Start Booting'
-	RootDirSizeForLoop	dw	RootDirSectors
+	RootDirSizeForLoop	dw	RootDirSectorsNum
 	SectorNo		dw	0		
 	Odd			db	0
 	LoaderFileName db 'Loader.bin'
@@ -82,14 +82,14 @@
 	cmp word [RootDirSizeForLoop], 0
 	jz No_Loader_Bin
 	dec word [RootDirSizeForLoop]
-	mov ax, 0000h
+	mov ax, BaseOfLoader
 	mov es, ax
-	mov bx, 8000h
+	mov bx, OffSetOfLoader
 	mov ax, [SectorNo]
 	mov cl, 1
 	call Read_Sector
 	mov si, LoaderFileName	; It make ds:si point to LoaderFileName
-	mov di, 8000h
+	mov di, OffSetOfLoader
 	cld
 	mov dx, 10h				; One sector has 0x10 directory entry
 	
@@ -138,7 +138,98 @@
 	jmp $
 	
 	Find_File:
-	jmp $
+	mov ax, RootDirSectorsNum
+	and di, 0ffe0h			; Reset the di to the origin address
+	add di, 1ah				; es:[di+1ah] is DIR_FstClus, point to 
+							; the first cluster in the data area
+	mov cx, word [es:di]	
+	push cx					; Push cluster NO into stack 
+	add cx, ax				; Calculate the sector NO of the data
+	add cx, SectorsBanlance	; Use formula: Data_sector_start_NO = 
+							; SectorsBanlance(RootDirStartSectors-2) +
+							; RootDirSectorsNum
+	mov ax, BaseOfLoader
+	mov es, ax
+	mov bx, OffSetOfLoader
+	mov ax, cx
+	
+	Loading_File:
+	push ax
+	push bx
+	
+	; Display '.' to gain the result like "Start booting...."
+	mov ah, 0eh
+	mov al, '.'
+	mov bl, 0fh
+	int 10h
+	
+	pop bx
+	pop ax
+	
+	mov cl, 1
+	call Read_Sector		; Read sector from data area
+	pop ax
+	call Get_Fat_Entry
+	
+	cmp ax, 0fffh
+	jz File_Loaded
+	push ax
+	mov dx, RootDirSectorsNum
+	add ax, dx
+	add ax, SectorsBanlance
+	add bx [BPB_BytesPerSec]
+	jmp Loading_File
+	
+	File_Loaded:
+	jmp BaseOfLoader:OffSetOfLoader
+	
+	Get_Fat_Entry:
+	push es
+	push bx
+	
+	push ax
+	mov ax, BaseOfLoader	
+	sub ax, 0100h			; Allocate 4kb to save FAT
+	mov es, ax
+	pop ax					; Now ax save the cluster NO in data area
+	
+	mov byte [Odd], 0
+	mov bx, 3				; 
+	mul bx					; These code is used to judge
+	mov bx, 2				; ax*1.5 is even number or not
+	div bx					; ax*1.5 is the byte number of the FAT12
+	cmp dx, 0				;
+	jz Is_Even
+	mov byte [Odd], 1
+	
+	Is_Even:
+	xor dx, dx
+	mov bx, [BPB_BytesPerSec]
+	div bx					; After division, ax is the sector NO in the FAT area
+							; dx is the byte NO to the sector
+	push dx
+	mov bx, 0
+	add ax, FAT1StartSectors; Now ax is the number of sectors that 
+							; the FAT entry starting byte is in the sector 
+	mov cl, 2
+	call Read_Sector		; Read two sector to avoid the FAT entry over two sectors
+	
+	pop dx
+	mov bx, dx
+	mov ax, [es:bx]			
+	cmp byte [Odd], 1
+	jnz Even_2
+	shr ax, 4				; If the byte number is odd, 
+							; ax need to be ax>>4 to get the right vale
+	
+	Even_2:
+	and ax, 0fffh			; Set the first 4bit of ax by 0 
+	
+	Get_Fat_Entry_Ready:
+	pop bx
+	pop es
+	ret
+	
 	
 	; Use INT 13h AH=02H to read sectors
 	; parameter:
@@ -155,12 +246,16 @@
 	; Starting sectors number=remainder+1
 	; Magnetic head number=quotient&1
 	; Track number=quotient>>1
-	Read_Sector:			; The function is used to read sector
+	
+	; The function is used to read sector
+	; ax is used to save sectors NO
+	; cl save the number of sectors which will be read
+	Read_Sector:			
 	push bp
 	mov bp, sp
-	sub esp, 2				; esp alloc 2byte to save the number of 
+	sub esp, 2				; esp allocate 2byte to save the number of 
 							; sectors which will be read
-	mov byte [bp-2], cl		; cl save the number of sectors which will be read
+	mov byte [bp-2], cl	
 	push bx
 	mov bl, [BPB_SecPerTrk]
 	div bl					; When divisor is 8bit, dividend is ax, and then quotient

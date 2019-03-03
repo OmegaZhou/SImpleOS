@@ -44,18 +44,21 @@
 	
 	
 	Boot_Start:
+	; Init stack
 	mov ax, cs
 	mov ds, ax
 	mov es, ax
 	mov ss, ax
 	mov sp, BaseOfStack
 	
+	; Clear screen
 	mov ax, 0600h
 	mov bx, 0700h
-	mov cx, 0
-	mov dx, 0184fh
+	mov cx, 0000h
+	mov dx, 184fh
 	int 10h
 	
+	; Display string
 	mov ax, 1301h
 	mov bx, 000fh
 	mov dx, 0000h
@@ -67,6 +70,7 @@
 	mov bp, StartMessage
 	int 10h
 	
+	; Reset disk
 	xor ah, ah
 	xor dl, dl
 	int 13h
@@ -78,16 +82,16 @@
 	cmp word [RootDirSizeForLoop], 0
 	jz No_Loader_Bin
 	dec word [RootDirSizeForLoop]
-	mov ax, 00h
+	mov ax, 0000h
 	mov es, ax
 	mov bx, 8000h
 	mov ax, [SectorNo]
 	mov cl, 1
 	call Read_Sector
-	mov si, LoaderFileName
+	mov si, LoaderFileName	; It make ds:si point to LoaderFileName
 	mov di, 8000h
 	cld
-	mov dx, 10h
+	mov dx, 10h				; One sector has 0x10 directory entry
 	
 	Search_For_Loader_Bin:
 	cmp dx, 0
@@ -99,7 +103,8 @@
 	cmp cx, 0
 	jz Find_File
 	dec cx
-	lodsb
+	lodsb					; ds:si->al, and then si point to next byte
+							; the moving direction set by CLD instruction 
 	cmp al, byte [es:di]
 	jz Go_On
 	jmp File_Different
@@ -108,17 +113,18 @@
 	inc di
 	jmp Cmp_File_Name
 	
-	File_Different:			; Find loader.bin in next sector
-	and di, 0ffe0h
-	add di, 20h
-	mov si, LoaderFileName
+	File_Different:			; Find loader.bin in next directory entry
+	and di, 0ffe0h			; Reset the di to the origin address
+	add di, 20h				; One directory entry is 32 byte 
+							; It make es:di point next directory entry
+	mov si, LoaderFileName	; Reset the si point the start of file name
 	jmp Search_For_Loader_Bin 
 	
 	Search_Next_Sector:
 	add word [SectorNo], 1
 	jmp Begin_Search
 	
-	No_Loader_Bin:			; Fail finding loader.bin, throw error
+	No_Loader_Bin:			; Fail finding loader.bin, display error
 	mov ax, 1301h
 	mov bx, 008ch
 	mov dx, 0100h
@@ -134,25 +140,45 @@
 	Find_File:
 	jmp $
 	
-	Read_Sector:			;The function is used to read sector
+	; Use INT 13h AH=02H to read sectors
+	; parameter:
+	; dl = Driver number	
+	; al = The number of the number of sectors which will be read
+	; ch = Track number
+	; cl = Starting sectors number
+	; dh = Magnetic head number
+	; result:
+	; Save sectors data to es:bx
+	
+	; The formula to get these information
+	; Use sectors number read/SecPerTrk
+	; Starting sectors number=remainder+1
+	; Magnetic head number=quotient&1
+	; Track number=quotient>>1
+	Read_Sector:			; The function is used to read sector
 	push bp
 	mov bp, sp
-	sub esp, 2
-	mov byte [bp-2], cl
+	sub esp, 2				; esp alloc 2byte to save the number of 
+							; sectors which will be read
+	mov byte [bp-2], cl		; cl save the number of sectors which will be read
 	push bx
 	mov bl, [BPB_SecPerTrk]
-	div bl
+	div bl					; When divisor is 8bit, dividend is ax, and then quotient
+							; is saved in al, remainder is saved in ah
 	inc ah
 	mov cl, ah
 	mov dh, al
+	and dh, 1
 	shr al, 1
 	mov ch, al
-	and dh, 1
+	
 	pop bx
 	mov dl, [BS_DrvNum]
-	Go_On_Read:				; Then use INT to read sectors
+	Go_On_Read:				; Then use INT 13h to read sectors and if read failed,
+							; and then try again
 	mov ah, 2
 	mov al, byte [bp-2]
+	int 13h
 	jc Go_On_Read
 	add esp, 2
 	pop bp

@@ -5,7 +5,7 @@
 	SectorsBanlance equ 17
 	
 	; The information of disk
-	BS_OEMName db 'ZYDboot '
+	BS_OEMName db 'ZYD boot'
 	BPB_BytesPerSec dw 512
 	BPB_SecPerClus db 1
 	BPB_RsvdSecCnt dw 1

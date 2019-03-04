@@ -27,9 +27,9 @@
 	mov	sp,	0x7c00
 	
 	; Display string
-		mov	ax,	1301h
+	mov	ax,	1301h
 	mov	bx,	000fh
-	mov	dx,	0200h
+	mov	dx,	0300h
 	mov	cx,	13
 	push ax
 	mov	ax,	ds

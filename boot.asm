@@ -12,15 +12,6 @@
 	
 	%include "FAT.inc"
 	
-	; Some variable
-	StartMessage db 'Start Booting'
-	RootDirSizeForLoop	dw	RootDirSectorsNum
-	SectorNo		dw	0		
-	Odd			db	0
-	LoaderFileName db 'MYLOADERBIN'
-	NoLoderMessage db 'Error:No Loader Found'
-	
-	
 	Boot_Start:
 	; Init stack
 	mov ax, cs
@@ -37,16 +28,10 @@
 	int 10h
 	
 	; Display string
-	mov ax, 1301h
-	mov bx, 000fh
 	mov dx, 0000h
 	mov cx, 13
-	push ax
-	mov ax, ds
-	mov es, ax
-	pop ax
 	mov bp, StartMessage
-	int 10h
+	call Display_Str
 	
 	; Reset disk
 	xor ah, ah
@@ -60,14 +45,14 @@
 	cmp word [RootDirSizeForLoop], 0
 	jz No_Loader_Bin
 	dec word [RootDirSizeForLoop]
-	mov ax, 00h
+	mov ax, BaseOfLoader
 	mov es, ax
-	mov bx, 8000h
+	mov bx, OffsetOfLoader
 	mov ax, [SectorNo]
 	mov cl, 1
 	call Read_Sector
 	mov si, LoaderFileName	; It make ds:si point to LoaderFileName
-	mov di, 8000h
+	mov di, OffsetOfLoader
 	cld
 	mov dx, 10h				; One sector has 0x10 directory entry
 	
@@ -88,9 +73,6 @@
 	jmp File_Different
 	
 	Go_On:					; Continue comparing file name
-	mov ah, 0eh
-	mov bl, 0fh
-	int 10h
 	inc di
 	jmp Cmp_File_Name
 	
@@ -106,19 +88,18 @@
 	jmp Begin_Search
 	
 	No_Loader_Bin:			; Fail finding loader.bin, display error
-	mov ax, 1301h
-	mov bx, 008ch
 	mov dx, 0100h
 	mov cx, 21
-	push ax
-	mov ax, ds
-	mov es, ax
-	pop ax
 	mov bp, NoLoderMessage
-	int 10h
+	call Display_Str
 	jmp $
 	
 	Find_File:
+	mov dx, 0100h
+	mov cx, 24
+	mov bp, FindLoaderMessage
+	call Display_Str
+	
 	mov ax, RootDirSectorsNum
 	and di, 0ffe0h			; Reset the di to the origin address
 	add di, 1ah				; es:[di+1ah] is DIR_FstClus, point to 
@@ -135,17 +116,6 @@
 	mov ax, cx
 	
 	Loading_File:
-	push ax
-	push bx
-	
-	; Display '.' to gain the result like "Start booting...."
-	mov ah, 0eh
-	mov al, '.'
-	mov bl, 0fh
-	int 10h
-	
-	pop bx
-	pop ax
 	
 	mov cl, 1
 	call Read_Sector		; Read sector from data area
@@ -245,9 +215,8 @@
 	mov cl, ah
 	mov dh, al
 	and dh, 1
-	mov ch, al
 	shr al, 1
-	
+	mov ch, al
 	
 	pop bx
 	mov dl, [BS_DrvNum]
@@ -256,10 +225,29 @@
 	mov ah, 2
 	mov al, byte [bp-2]
 	int 13h
-	jnc Go_On_Read
+	jc Go_On_Read
 	add esp, 2
 	pop bp
 	ret
+	
+	Display_Str:
+	mov ax, 1301h
+	mov bx, 000fh
+	push ax
+	mov ax, ds
+	mov es, ax
+	pop ax
+	int 10h
+	ret
+	
+	; Some variable
+	StartMessage db 'Start Booting'
+	RootDirSizeForLoop	dw	RootDirSectorsNum
+	SectorNo		dw	0		
+	Odd			db	0
+	LoaderFileName db 'LOADER  BIN'
+	NoLoderMessage db 'Error:No Loader Found'
+	FindLoaderMessage db 'Find Loader Successfully'
 	
 	times 510 - ($ - $$) db 0
 	dw 0xaa55

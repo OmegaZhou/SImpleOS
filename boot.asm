@@ -4,42 +4,20 @@
 	; Some const value
 	BaseOfStack equ 0x7c00
 	BaseOfLoader equ 0x1000
-	OffSetOfLoader equ 0x00
-	RootDirSectorsNum equ 14
-	RootDirStartSectors equ 19
-	FAT1StartSectors equ 1
-	SectorsBanlance equ 17
+	OffsetOfLoader equ 0x00
+
 	
 	jmp short Boot_Start
 	nop
 	
-	; The information of disk
-	BS_OEMName db 'ZYDboot'
-	BPB_BytesPerSec dw 512
-	BPB_SecPerClus db 1
-	BPB_RsvdSecCnt dw 1
-	BPB_NumFATs db 2
-	BPB_RootEntCnt dw 224
-	BPB_TotSec16 dw 2880
-	BPB_Media db 0xF0
-	BPB_FATSz16	dw 9		
-	BPB_SecPerTrk dw 18		
-	BPB_NumHeads dw 2		
-	BPB_HiddSec	dd 0	
-	BPB_TotSec32 dd 0		
-	BS_DrvNum db 0		
-	BS_Reserved1 db 0		
-	BS_BootSig db 29h		
-	BS_VolID dd 0		
-	BS_VolLab db 'Boot Loader'
-	BS_FileSysType db 'FAT12   '
+	%include "FAT.inc"
 	
 	; Some variable
 	StartMessage db 'Start Booting'
 	RootDirSizeForLoop	dw	RootDirSectorsNum
 	SectorNo		dw	0		
 	Odd			db	0
-	LoaderFileName db 'Loader.bin'
+	LoaderFileName db 'MYLOADERBIN'
 	NoLoderMessage db 'Error:No Loader Found'
 	
 	
@@ -82,14 +60,14 @@
 	cmp word [RootDirSizeForLoop], 0
 	jz No_Loader_Bin
 	dec word [RootDirSizeForLoop]
-	mov ax, BaseOfLoader
+	mov ax, 00h
 	mov es, ax
-	mov bx, OffSetOfLoader
+	mov bx, 8000h
 	mov ax, [SectorNo]
 	mov cl, 1
 	call Read_Sector
 	mov si, LoaderFileName	; It make ds:si point to LoaderFileName
-	mov di, OffSetOfLoader
+	mov di, 8000h
 	cld
 	mov dx, 10h				; One sector has 0x10 directory entry
 	
@@ -110,6 +88,9 @@
 	jmp File_Different
 	
 	Go_On:					; Continue comparing file name
+	mov ah, 0eh
+	mov bl, 0fh
+	int 10h
 	inc di
 	jmp Cmp_File_Name
 	
@@ -150,7 +131,7 @@
 							; RootDirSectorsNum
 	mov ax, BaseOfLoader
 	mov es, ax
-	mov bx, OffSetOfLoader
+	mov bx, OffsetOfLoader
 	mov ax, cx
 	
 	Loading_File:
@@ -177,11 +158,11 @@
 	mov dx, RootDirSectorsNum
 	add ax, dx
 	add ax, SectorsBanlance
-	add bx [BPB_BytesPerSec]
+	add bx, [BPB_BytesPerSec]
 	jmp Loading_File
 	
 	File_Loaded:
-	jmp BaseOfLoader:OffSetOfLoader
+	jmp BaseOfLoader:OffsetOfLoader
 	
 	Get_Fat_Entry:
 	push es
@@ -264,8 +245,9 @@
 	mov cl, ah
 	mov dh, al
 	and dh, 1
-	shr al, 1
 	mov ch, al
+	shr al, 1
+	
 	
 	pop bx
 	mov dl, [BS_DrvNum]
@@ -274,7 +256,7 @@
 	mov ah, 2
 	mov al, byte [bp-2]
 	int 13h
-	jc Go_On_Read
+	jnc Go_On_Read
 	add esp, 2
 	pop bp
 	ret

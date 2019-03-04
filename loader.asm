@@ -12,7 +12,7 @@
 	TempOffsetOfKernel equ 0x7e00
 	
 	; Some value
-	LoaderMessage db 'Start Loading'
+	FindLoaderMessage db 'Booting successfully'
 	
 	[SECTION .s16]
 	[BITS 16]
@@ -27,14 +27,18 @@
 	mov	sp,	0x7c00
 	
 	; Display string
-	mov	ax,	1301h
-	mov	bx,	000fh
-	mov	dx,	0300h
-	mov	cx,	13
-	push ax
-	mov	ax,	ds
-	mov	es,	ax
-	pop	ax
-	mov	bp,	LoaderMessage
-	int	10h
+	mov dx, 0100h
+	mov cx, 20
+	mov bx, 000fh
+	mov bp, FindLoaderMessage
+	call Display_Str
 	jmp $
+	
+	Display_Str:
+	mov ax, 1301h
+	push ax
+	mov ax, ds
+	mov es, ax
+	pop ax
+	int 10h
+	ret

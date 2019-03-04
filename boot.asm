@@ -29,6 +29,7 @@
 	
 	; Display string
 	mov dx, 0000h
+	mov bx, 000fh
 	mov cx, 13
 	mov bp, StartMessage
 	call Display_Str
@@ -88,6 +89,7 @@
 	jmp Begin_Search
 	
 	No_Loader_Bin:			; Fail finding loader.bin, display error
+	mov bx, 008ch
 	mov dx, 0100h
 	mov cx, 21
 	mov bp, NoLoderMessage
@@ -95,10 +97,6 @@
 	jmp $
 	
 	Find_File:
-	mov dx, 0100h
-	mov cx, 24
-	mov bp, FindLoaderMessage
-	call Display_Str
 	
 	mov ax, RootDirSectorsNum
 	and di, 0ffe0h			; Reset the di to the origin address
@@ -116,6 +114,15 @@
 	mov ax, cx
 	
 	Loading_File:
+	
+	push ax
+	push bx
+	mov	ah,	0eh
+	mov	al,	'.'
+	mov	bl,	0fh
+	int	10h
+	pop	bx
+	pop	ax
 	
 	mov cl, 1
 	call Read_Sector		; Read sector from data area
@@ -232,7 +239,6 @@
 	
 	Display_Str:
 	mov ax, 1301h
-	mov bx, 000fh
 	push ax
 	mov ax, ds
 	mov es, ax
@@ -247,7 +253,7 @@
 	Odd			db	0
 	LoaderFileName db 'LOADER  BIN'
 	NoLoderMessage db 'Error:No Loader Found'
-	FindLoaderMessage db 'Find Loader Successfully'
+	
 	
 	times 510 - ($ - $$) db 0
 	dw 0xaa55

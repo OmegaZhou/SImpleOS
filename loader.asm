@@ -135,42 +135,41 @@
 	jmp $
 	
 	Find_File:
-	jmp $
-	
-	Read_Sector:			
-	push bp
-	mov bp, sp
-	sub esp, 2				; esp allocate 2byte to save the number of 
-							; sectors which will be read
-	mov byte [bp-2], cl	
-	push bx
-	mov bl, [BPB_SecPerTrk]
-	div bl					; When divisor is 8bit, dividend is ax, and then quotient
-							; is saved in al, remainder is saved in ah
-	inc ah
-	mov cl, ah
-	mov dh, al
-	and dh, 1
-	shr al, 1
-	mov ch, al
-	
-	pop bx
-	mov dl, [BS_DrvNum]
-	Go_On_Read:				; Then use INT 13h to read sectors and if read failed,
-							; and then try again
-	mov ah, 2
-	mov al, byte [bp-2]
-	int 13h
-	jc Go_On_Read
-	add esp, 2
-	pop bp
-	ret
-	
-	Display_Str:
-	mov ax, 1301h
-	push ax
-	mov ax, ds
+		
+	mov ax, RootDirSectorsNum
+	and di, 0ffe0h			; Reset the di to the origin address
+	add di, 1ah				; es:[di+1ah] is DIR_FstClus, point to 
+							; the first cluster in the data area
+	mov cx, word [es:di]	
+	push cx					; Push cluster NO into stack 
+	add cx, ax				; Calculate the sector NO of the data
+	add cx, SectorsBanlance	; Use formula: Data_sector_start_NO = 
+							; SectorsBanlance(RootDirStartSectors-2) +
+							; RootDirSectorsNum
+	mov ax, BaseOfKernel
 	mov es, ax
+	mov bx, OffsetOfKernel
+	mov ax, cx
+	
+	Loading_File:
+	
+	call Display_Period
+	
+	mov cl, 1
+	call Read_Sector		; Read sector from data area
 	pop ax
-	int 10h
-	ret
+	call Get_Fat_Entry
+	
+	cmp ax, 0fffh
+	jz File_Loaded
+	push ax
+	mov dx, RootDirSectorsNum
+	add ax, dx
+	add ax, SectorsBanlance
+	add bx, [BPB_BytesPerSec]
+	jmp Loading_File
+	
+	File_Loaded:
+	jmp BaseOfKernel:OffsetOfKernel
+	
+	%include 'bootloader_func.inc'

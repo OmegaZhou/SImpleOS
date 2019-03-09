@@ -115,14 +115,7 @@
 	
 	Loading_File:
 	
-	push ax
-	push bx
-	mov	ah,	0eh
-	mov	al,	'.'
-	mov	bl,	0fh
-	int	10h
-	pop	bx
-	pop	ax
+	call Display_Period
 	
 	mov cl, 1
 	call Read_Sector		; Read sector from data area
@@ -141,60 +134,13 @@
 	File_Loaded:
 	jmp BaseOfLoader:OffsetOfLoader
 	
-	Get_Fat_Entry:
-	push es
-	push bx
-	
-	push ax
-	mov ax, BaseOfLoader	
-	sub ax, 0100h			; Allocate 4kb to save FAT
-	mov es, ax
-	pop ax					; Now ax save the cluster NO in data area
-	
-	mov byte [Odd], 0
-	mov bx, 3				; 
-	mul bx					; These code is used to judge
-	mov bx, 2				; ax*1.5 is even number or not
-	div bx					; ax*1.5 is the byte number of the FAT12
-	cmp dx, 0				;
-	jz Is_Even
-	mov byte [Odd], 1
-	
-	Is_Even:
-	xor dx, dx
-	mov bx, [BPB_BytesPerSec]
-	div bx					; After division, ax is the sector NO in the FAT area
-							; dx is the byte NO to the sector
-	push dx
-	mov bx, 0
-	add ax, FAT1StartSectors; Now ax is the number of sectors that 
-							; the FAT entry starting byte is in the sector 
-	mov cl, 2
-	call Read_Sector		; Read two sector to avoid the FAT entry over two sectors
-	
-	pop dx
-	mov bx, dx
-	mov ax, [es:bx]			
-	cmp byte [Odd], 1
-	jnz Even_2
-	shr ax, 4				; If the byte number is odd, 
-							; ax need to be ax>>4 to get the right vale
-	
-	Even_2:
-	and ax, 0fffh			; Set the first 4bit of ax by 0 
-	
-	Get_Fat_Entry_Ready:
-	pop bx
-	pop es
-	ret
 	
 	%include 'bootloader_func.inc'
 	
 	; Some variable
 	StartMessage db 'Start Booting'
-	RootDirSizeForLoop	dw	RootDirSectorsNum
-	SectorNo		dw	0		
-	Odd			db	0
+	RootDirSizeForLoop dw RootDirSectorsNum
+	SectorNo dw 0		
 	LoaderFileName db 'LOADER  BIN'
 	NoLoderMessage db 'Error:No Loader Found'
 	

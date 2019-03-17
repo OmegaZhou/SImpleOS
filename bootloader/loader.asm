@@ -1,55 +1,43 @@
 
-	org 0x10000
+	org 0x0100
 
 	jmp Loader_Begin
 	
 	%include "FAT.inc"
+	%include "pm.inc"
 	
-	BaseOfKernel equ 0x00
-	OffsetOfKernel equ 0x100000
+
+	; GDT
+	;                            段基址     段界限, 属性
+	LABEL_GDT: 			Descriptor 0,            0,  0              ; 空描述符
+	LABEL_DESC_FLAT_C: 	Descriptor 0,		0fffffh, DA_CR|DA_32|DA_LIMIT_4K ;0-4G
+	LABEL_DESC_FLAT_RW: Descriptor 0,      	0fffffh, DA_DRW|DA_32|DA_LIMIT_4K;0-4G
+	LABEL_DESC_VIDEO:   Descriptor 0B8000h, 0ffffh,  DA_DRW|DA_DPL3 ; 显存首地址
+
+	GdtLen		equ	$ - LABEL_GDT
+	GdtPtr		dw	GdtLen - 1				; 段界限
+				dd	BaseOfLoaderPhyAddr + LABEL_GDT		; 基地址
+
+	; GDT 选择子
+	SelectorFlatC	equ	LABEL_DESC_FLAT_C	- LABEL_GDT
+	SelectorFlatRW	equ	LABEL_DESC_FLAT_RW	- LABEL_GDT
+	SelectorVideo	equ	LABEL_DESC_VIDEO	- LABEL_GDT + SA_RPL3
 	
-	TempBaseOfKernel equ 0x00
-	TempOffsetOfKernel equ 0x7e00
-	MemStructBuf equ 0x7e00
-	
-	[SECTION gdt]
-
-	LABEL_GDT dd 0,0
-	LABEL_DESC_CODE32 dd 0x0000FFFF,0x00CF9A00
-	LABEL_DESC_DATA32 dd 0x0000FFFF,0x00CF9200
-
-	GdtLen equ $ - LABEL_GDT
-	GdtPtr dw GdtLen - 1
-	dd LABEL_GDT
-
-	SelectorCode32 equ LABEL_DESC_CODE32 - LABEL_GDT
-	SelectorData32 equ LABEL_DESC_DATA32 - LABEL_GDT
-
-	[SECTION gdt64]
-
-	LABEL_GDT64 dq 0x0000000000000000
-	LABEL_DESC_CODE64 dq 0x0020980000000000
-	LABEL_DESC_DATA64 dq 0x0000920000000000
-
-	GdtLen64 equ $ - LABEL_GDT64
-	GdtPtr64 dw GdtLen64 - 1
-	dd LABEL_GDT64
-
-	SelectorCode64 equ LABEL_DESC_CODE64 - LABEL_GDT64
-	SelectorData64 equ LABEL_DESC_DATA64 - LABEL_GDT64
-
-	
-	[SECTION .s16]
-	[BITS 16]
+	BaseOfLoader equ 0x9000
+	BaseOfStack equ 0x0100
+	BaseOfKernel equ 0x8000
+	OffsetOfKernel equ 0x00
+	BaseOfLoaderPhyAddr equ	BaseOfLoader*10h 
+	PageDirBase	equ	100000h	
+	PageTblBase	equ	101000h	
 	
 	Loader_Begin:
 	; Init
 	mov	ax,	cs
 	mov	ds,	ax
 	mov	es,	ax
-	mov	ax,	0x00
 	mov	ss,	ax
-	mov	sp,	0x7c00
+	mov	sp,	BaseOfStack
 	
 	; Display string
 	mov dx, 0100h
@@ -64,46 +52,43 @@
 	mov bp, LoadMessage
 	call Display_Str
 	
-	
-	; Open A20 function
-	push ax
-	in al, 92h					; Load 0x92 port of I/O
-	or al, 02h					; Start A20 through set 0x92 port (Fast Gate A20)
-	out 92h, al
-	
-	cli
-	
-	db 0x66
-	lgdt [GdtPtr]
-	
-	mov eax, cr0				;
-	or eax, 1					; Start Protected Mode
-	mov cr0, eax				;
-	
-	mov ax, SelectorData32		; Make 4GB addressing ability
-	mov fs, ax					;
-	
-	mov eax, cr0				; 
-	and al, 0feh				; Quit Protected Mode
-	mov cr0, eax				;
-	
-	sti
+	; 得到内存数
+	mov	ebx, 0			; ebx = 后续值, 开始时需为 0
+	mov	di, _MemChkBuf		; es:di 指向一个地址范围描述符结构(ARDS)
+	.MemChkLoop:
+	mov	eax, 0E820h		; eax = 0000E820h
+	mov	ecx, 20			; ecx = 地址范围描述符结构的大小
+	mov	edx, 0534D4150h		; edx = 'SMAP'
+	int	15h			; int 15h
+	jc	.MemChkFail
+	add	di, 20
+	inc	dword [_dwMCRNumber]	; dwMCRNumber = ARDS 的个数
+	cmp	ebx, 0
+	jne	.MemChkLoop
+	jmp	.MemChkOK
+	.MemChkFail:
+	mov	dword [_dwMCRNumber], 0
+	.MemChkOK:
+
 	
 	; Search kernel.bin
 	mov word [SectorNo], RootDirStartSectors
+	xor ah, ah
+	xor dl, dl
+	int 13h
 	
 	Begin_Search:
 	cmp word [RootDirSizeForLoop], 0
 	jz No_Kernel_Bin
 	dec word [RootDirSizeForLoop]
-	mov ax, TempBaseOfKernel
+	mov ax, BaseOfKernel
 	mov es, ax
-	mov bx, TempOffsetOfKernel
+	mov bx, OffsetOfKernel
 	mov ax, [SectorNo]
 	mov cl, 1
 	call Read_Sector
 	mov si, KernelFileName	; It make ds:si point to KernelFileName
-	mov di, TempOffsetOfKernel
+	mov di, OffsetOfKernel
 	cld
 	mov dx, 10h				; One sector has 0x10 directory entry
 	
@@ -158,9 +143,9 @@
 	add cx, SectorsBanlance	; Use formula: Data_sector_start_NO = 
 							; SectorsBanlance(RootDirStartSectors-2) +
 							; RootDirSectorsNum
-	mov eax, TempBaseOfKernel
-	mov es, eax
-	mov bx, TempOffsetOfKernel
+	mov ax, BaseOfKernel
+	mov es, ax
+	mov bx, OffsetOfKernel
 	mov ax, cx
 	
 	Loading_File:
@@ -170,45 +155,6 @@
 	mov cl, 1
 	call Read_Sector		; Read sector from data area
 	pop ax
-	
-	push cx 
-	push eax
-	push fs
-	push edi
-	push ds
-	push esi
-	
-	mov cx, 0200h			; Use cx to control loop
-							; Move 512 byte from temp memory to 
-							; the memory where the kernel running
-	mov ax, BaseOfKernel
-	mov fs, ax
-	; The NewOffsetOfKernel is means the OffsetOfKernel after
-	; moving some sections of kernel
-	mov edi, dword [NewOffsetOfKernel]
-	
-	mov ax, TempBaseOfKernel
-	mov ds, ax
-	mov esi, TempOffsetOfKernel
-	
-	Move_Kernel:
-	mov al, byte [ds:esi]
-	mov byte [fs:edi], al
-	inc esi
-	inc edi
-	loop Move_Kernel
-	
-	mov eax, 0x1000
-	mov ds, eax
-	; Update the NewOffsetOfKernel
-	mov dword [NewOffsetOfKernel], edi
-	pop esi
-	pop ds
-	pop edi
-	pop fs
-	pop eax
-	pop cx
-	
 	
 	call Get_Fat_Entry
 	
@@ -235,202 +181,142 @@
 	out dx, al
 	pop dx
 	
-	; Save the memory information to the MemStructBuf
-	Start_Get_Mem_Struct:
-	mov dx, 0700h
-	mov cx, 24
-	mov bx, 000fh
-	mov bp, GetMemMessage
-	call Display_Str
-	
-	mov ebx, 0
-	mov ax, 0x00
-	mov es, ax
-	mov di, MemStructBuf
-	
-	Get_Mem_Struct:
-	mov eax, 0x0e820
-	mov ecx, 20
-	mov edx, 0x534d4150
-	int 15h
-	jc Get_Mem_Struct_Fail
-	add di, 20
-	cmp ebx, 0
-	jne Get_Mem_Struct
-	jmp Get_Mem_OK
-	
-	Get_Mem_Struct_Fail:
-	mov dx, 0800h
-	mov cx, 25
-	mov bx, 008ch
-	mov bp, GetMemFailMessage
-	call Display_Str
-	jmp $
-	
-	Get_Mem_OK:
-	mov dx, 0800h
-	mov cx, 31
-	mov bx, 000fh
-	mov bp, GetMemSuccessMessage
-	call Display_Str
-	
-	jmp Init_IDT_GDT
-	
-	; These codes section is used to set resolution ratio
-	; And now these codes is jumped
-	Set_SVGA_Mode:
-	mov ax, 4f02h
-	mov bx, 4180h
-	int 10h
-	
-	Init_IDT_GDT:
-	; Enter protect mode
-	cli 					; Close interrupt
-	
-	db 0x66
 	lgdt [GdtPtr]
+	
+	cli 
+	in al, 92h
+	or al, 00000010b
+	out 92h, al
 	
 	mov eax, cr0
 	or eax, 1
 	mov cr0, eax
 	
-	jmp dword SelectorCode32:Go_To_Tmp_Protect
+	jmp dword SelectorFlatC:(BaseOfLoaderPhyAddr+PM_START)
+	
+	%include "bootloader_func.inc"
 	
 	[SECTION .s32]
+	ALIGN 32
 	[BITS 32]
 	
-	Go_To_Tmp_Protect:
-	
-	mov ax, 0x10
-	mov ds, ax
-	mov es, ax
-	mov fs, ax
-	mov ss, ax
-	mov esp, 7e00h
-	
-	call Support_Long_Mode
-	test eax, eax
-	
-	jz No_Support
-	
-	; Init temp page table
-	mov dword [0x90000], 0x91007
-	mov	dword [0x90800], 0x91007		
-
-	mov	dword [0x91000], 0x92007
-
-	mov	dword [0x92000], 0x000083
-
-	mov	dword [0x92008], 0x200083
-
-	mov	dword [0x92010], 0x400083
-
-	mov	dword [0x92018], 0x600083
-
-	mov	dword [0x92020], 0x800083
-
-	mov	dword [0x92028], 0xa00083
-	
-	; Load GDTR
-	db 0x66
-	lgdt [GdtPtr64]
-	mov ax, 0x10
-	mov ds, ax
-	mov es, ax
-	mov fs, ax
+	PM_START:
+	mov ax, SelectorVideo
 	mov gs, ax
-	mov ss, ax
 	
-	mov esp, 7e00h
+	mov ax, SelectorFlatRW
+	mov ds, ax
+	mov	es, ax
+	mov	fs, ax
+	mov	ss, ax
+	mov	esp, TopOfStack
 	
-	; Open PAE
-	mov eax, cr4
-	bts eax, 5
-	mov cr4, eax
+	push	szMemChkTitle
+	call	Display_Str_In_PM
+	add	esp, 4
 	
-	mov eax, 0x90000
-	mov cr3, eax
-	
-	mov ecx, 0C0000080h
-	rdmsr
-	
-	bts eax, 8
-	wrmsr
-	
-	mov eax, cr0
-	bts eax, 0
-	bts eax, 31
-	mov cr0, eax
-	
-	jmp SelectorCode64:OffsetOfKernel
-	
-	
-	Support_Long_Mode:			; Judge whether support IA-32e mode
-	mov eax, 0x80000000
-	cpuid
-	cmp eax, 0x80000001
-	setnb al
-	jb Support_Long_Mode_Done
-	mov eax, 0x80000001
-	cpuid
-	bt edx, 29
-	setc al
-	
-	Support_Long_Mode_Done:
-	movzx eax, al
-	ret
-	
-	No_Support:
+	call Display_Mem_Info
+	call Setup_Paging
 	
 	jmp $
 	
-	
-	[SECTION .s16lib]
-	[BITS 16]
-	
-	; Display the value of AL to the screen
-	Display_AL:
-	push ecx
-	push edx
+	Display_Mem_Info:
+	push esi
 	push edi
+	push ecx
 	
-	mov edi, [DisplayPosition]
-	mov ah, 0fh				; Set the color
-	mov dl, al				; Save the low 4bits of the al
-	shr al, 4				; Set high 4bits to the al
-	mov ecx, 2				; al saved two number, so loop 2 times
+	mov esi, MemChkBuf
+	mov ecx, [dwMCRNumber]
 	
-	.begin:
-	and al, 0fh
-	cmp al, 9
-	ja .1
-	add al, '0'
-	jmp .2
+	.loop:
+	mov edx, 5
+	mov edi, ARDStruct
 	
-	; If value > 9
 	.1:
-	sub al, 0ah
-	add al, 'A'
+	push dword [esi]
+	call Display_Int
+	pop eax
+	stosd
+	add esi,4
+	dec edx
+	cmp edx,0
+	jnz .1
 	
-	; Display value
+	call Display_Line
+	cmp dword [dwType], 1
+	jne .2
+	mov eax, [dwBaseAddrLow]
+	add eax, [dwLengthLow]
+	cmp eax, [dwMemSize]
+	jb .2
+	mov [dwMemSize], eax
+	
 	.2:
-	mov [gs:edi], ax
-	add edi, 2
-	mov al, dl				; Set high 4bits to the al
-	loop .begin
+	loop .loop
+	call Display_Line
+	push szRAMSize
+	call Display_Str_In_PM
+	add esp, 4
 	
-	mov [DisplayPosition], edi
+	push dword [dwMemSize]
+	call Display_Int
+	add esp, 4
 	
-	pop edi
-	pop edx
-	pop ecx
-	
+	pop	ecx
+	pop	edi
+	pop	esi
 	ret
 	
 	
-	jmp $
+	Setup_Paging:
 	
-	%include 'bootloader_func.inc'
+	xor edx, edx
+	mov eax, [dwMemSize]
+	mov ebx, 400000h				; 4M for a page
+	div ebx
+	mov ecx, eax
+	test edx, edx
+	jz .no_reminder
+	inc ecx
+	
+	.no_reminder:
+	push ecx
+	mov ax, SelectorFlatRW
+	mov es, ax
+	mov edi, PageDirBase
+	xor eax, eax
+	mov eax, PageTblBase | PG_P | PG_USU | PG_RWW
+	
+	.1: 
+	stosd
+	add eax, 4096
+	loop .1
+	
+	pop eax
+	mov ebx, 1024
+	mul ebx
+	mov ecx, eax
+	mov edi,eax
+	mov edi, PageTblBase
+	xor eax, eax
+	mov eax, PG_P | PG_USU | PG_RWW
+	
+	.2:
+	stosd
+	add eax, 4096
+	loop .2
+	
+	mov	eax, PageDirBase
+	mov	cr3, eax
+	mov	eax, cr0
+	or	eax, 80000000h
+	mov	cr0, eax
+	jmp	short .3
+	
+	.3:
+	nop
+	ret
+	
 	
 	; Some value
 	NewOffsetOfKernel dd OffsetOfKernel
@@ -449,4 +335,47 @@
 	
 	SectorNo dw 0
 	RootDirSizeForLoop	dw	RootDirSectorsNum
-	DisplayPosition dd 0
+	
+	%include "loader_func_pm.inc"
+	
+	[SECTION .data1]
+
+	ALIGN	32
+
+	LABEL_DATA:
+	; 实模式下使用这些符号
+	; 字符串
+	_szMemChkTitle:	db "BaseAddrL BaseAddrH LengthLow LengthHigh   Type", 0Ah, 0
+	_szRAMSize:	db "RAM size:", 0
+	_szReturn:	db 0Ah, 0
+	; 变量
+	_dwMCRNumber:	dd 0	; Memory Check Result
+	_dwDispPos:	dd (80 * 6 + 0) * 2	; 屏幕第 6 行, 第 0 列
+	_dwMemSize:	dd 0
+	_ARDStruct:	; Address Range Descriptor Structure
+	_dwBaseAddrLow:		dd	0
+	_dwBaseAddrHigh:		dd	0
+	_dwLengthLow:			dd	0
+	_dwLengthHigh:		dd	0
+	_dwType:			dd	0
+	_MemChkBuf:	times	256	db	0
+	;
+	;; 保护模式下使用这些符号
+	szMemChkTitle		equ	BaseOfLoaderPhyAddr + _szMemChkTitle
+	szRAMSize		equ	BaseOfLoaderPhyAddr + _szRAMSize
+	szReturn		equ	BaseOfLoaderPhyAddr + _szReturn
+	dwDispPos		equ	BaseOfLoaderPhyAddr + _dwDispPos
+	dwMemSize		equ	BaseOfLoaderPhyAddr + _dwMemSize
+	dwMCRNumber		equ	BaseOfLoaderPhyAddr + _dwMCRNumber
+	ARDStruct		equ	BaseOfLoaderPhyAddr + _ARDStruct
+	dwBaseAddrLow	equ	BaseOfLoaderPhyAddr + _dwBaseAddrLow
+	dwBaseAddrHigh	equ	BaseOfLoaderPhyAddr + _dwBaseAddrHigh
+	dwLengthLow	equ	BaseOfLoaderPhyAddr + _dwLengthLow
+	dwLengthHigh	equ	BaseOfLoaderPhyAddr + _dwLengthHigh
+	dwType		equ	BaseOfLoaderPhyAddr + _dwType
+	MemChkBuf		equ	BaseOfLoaderPhyAddr + _MemChkBuf
+
+
+	; 堆栈就在数据段的末尾
+	StackSpace:	times	1024	db	0
+	TopOfStack	equ	BaseOfLoaderPhyAddr + $	; 栈顶

@@ -3,8 +3,8 @@
 	org 0x7c00
 	; Some const value
 	BaseOfStack equ 0x7c00
-	BaseOfLoader equ 0x1000
-	OffsetOfLoader equ 0x00
+	BaseOfLoader equ 0x9000
+	OffsetOfLoader equ 0x0100
 
 	
 	jmp short Boot_Start

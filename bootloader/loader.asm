@@ -30,6 +30,9 @@
 	BaseOfLoaderPhyAddr equ	BaseOfLoader*10h 
 	PageDirBase	equ	100000h	
 	PageTblBase	equ	101000h	
+	KernelEntryPointPhyAddr	equ	030400h
+	BaseOfKernelFilePhyAddr	equ	BaseOfKernel * 10h
+	
 	
 	Loader_Begin:
 	; Init
@@ -52,22 +55,24 @@
 	mov bp, LoadMessage
 	call Display_Str
 	
-	; 得到内存数
-	mov	ebx, 0			; ebx = 后续值, 开始时需为 0
-	mov	di, _MemChkBuf		; es:di 指向一个地址范围描述符结构(ARDS)
+	; Get memory size
+	mov	ebx, 0				; ebx = continuation value, need equal 0 firstly
+	mov	di, _MemChkBuf		; es:di point to ARDS(Address Range Descriptor Structure)
 	.MemChkLoop:
-	mov	eax, 0E820h		; eax = 0000E820h
-	mov	ecx, 20			; ecx = 地址范围描述符结构的大小
-	mov	edx, 0534D4150h		; edx = 'SMAP'
+	mov	eax, 0E820h			; If using int 15 to get memory size, eax need equal 0e820h
+	mov	ecx, 20				; Filling byte number
+	mov	edx, 0534D4150h		; Flag for int 15
 	int	15h			; int 15h
 	jc	.MemChkFail
 	add	di, 20
-	inc	dword [_dwMCRNumber]	; dwMCRNumber = ARDS 的个数
+	inc	dword [_dwMCRNumber]	; dwMCRNumber = ARDS number
 	cmp	ebx, 0
 	jne	.MemChkLoop
 	jmp	.MemChkOK
+	
 	.MemChkFail:
-	mov	dword [_dwMCRNumber], 0
+	mov	dword [_dwMCRNumber], 0	;Get memory size failed
+	
 	.MemChkOK:
 
 	
@@ -192,7 +197,7 @@
 	or eax, 1
 	mov cr0, eax
 	
-	jmp dword SelectorFlatC:(BaseOfLoaderPhyAddr+PM_START)
+	jmp dword SelectorFlatC:(BaseOfLoaderPhyAddr+PM_START)	;Jump to Protect Mode
 	
 	%include "bootloader_func.inc"
 	
@@ -217,8 +222,11 @@
 	
 	call Display_Mem_Info
 	call Setup_Paging
+	call InitKernel
 	
-	jmp $
+	jmp SelectorFlatC:KernelEntryPointPhyAddr
+	
+	
 	
 	Display_Mem_Info:
 	push esi
@@ -226,41 +234,41 @@
 	push ecx
 	
 	mov esi, MemChkBuf
-	mov ecx, [dwMCRNumber]
+	mov ecx, [dwMCRNumber]			; for(int i=0;i<dwMCRNumber;++i){
+									;
+	.loop:							;	for(int j=0;j<5;++j){	
+	mov edx, 5						;		Display_Int(MemChkBuf[j*4];
+	mov edi, ARDStruct				;		ARDStruct[j*4]=MemChkBuf[j*4];
+									;	
+	.1:								;	}
+	push dword [esi]				;	
+	call Display_Int				;
+	pop eax							;
+	stosd							;
+	add esi,4						;
+	dec edx							;
+	cmp edx,0						;
+	jnz .1							;
 	
-	.loop:
-	mov edx, 5
-	mov edi, ARDStruct
-	
-	.1:
-	push dword [esi]
-	call Display_Int
-	pop eax
-	stosd
-	add esi,4
-	dec edx
-	cmp edx,0
-	jnz .1
-	
-	call Display_Line
-	cmp dword [dwType], 1
-	jne .2
-	mov eax, [dwBaseAddrLow]
-	add eax, [dwLengthLow]
-	cmp eax, [dwMemSize]
-	jb .2
-	mov [dwMemSize], eax
-	
-	.2:
-	loop .loop
-	call Display_Line
-	push szRAMSize
-	call Display_Str_In_PM
-	add esp, 4
-	
-	push dword [dwMemSize]
-	call Display_Int
-	add esp, 4
+	call Display_Line				;	printf("\n");
+	cmp dword [dwType], 1			;	if(dwType==AddressRangeMemory){
+	jne .2							;
+	mov eax, [dwBaseAddrLow]		;		MemSize=BaseAddrL+LengthLow;
+	add eax, [dwLengthLow]			;	}
+	cmp eax, [dwMemSize]			;}
+	jb .2							;
+	mov [dwMemSize], eax			;
+									;
+	.2:								;
+	loop .loop						;
+	call Display_Line				; printf("\n");
+	push szRAMSize					;
+	call Display_Str_In_PM			; printf("RAM size:");
+	add esp, 4						;
+									;
+	push dword [dwMemSize]			; Display_Int(MemSize);
+	call Display_Int				;
+	add esp, 4						;
 	
 	pop	ecx
 	pop	edi
@@ -273,14 +281,15 @@
 	xor edx, edx
 	mov eax, [dwMemSize]
 	mov ebx, 400000h				; 4M for a page
-	div ebx
-	mov ecx, eax
-	test edx, edx
+	div ebx							; edx=MemSize%4M;
+	mov ecx, eax					; eax=MemSize/4M; 
+									; then ecx=eax=page number;
+	test edx, edx					
 	jz .no_reminder
-	inc ecx
-	
+	inc ecx							; if edx!=0;
+									; ++ecx;
 	.no_reminder:
-	push ecx
+	push ecx						; Save page number;
 	mov ax, SelectorFlatRW
 	mov es, ax
 	mov edi, PageDirBase
@@ -317,6 +326,67 @@
 	nop
 	ret
 	
+	; 将 KERNEL.BIN 的内容经过整理对齐后放到新的位置
+	; 遍历每一个 Program Header，
+	; 根据 Program Header 中的信息来确定把什么放进内存，放到什么位置，以及放多少。
+	InitKernel:
+    xor   esi, esi
+    mov   cx, word [BaseOfKernelFilePhyAddr+2Ch];`. ecx <- pELFHdr->e_phnum
+    movzx ecx, cx                               ;/
+    mov   esi, [BaseOfKernelFilePhyAddr + 1Ch]  ; esi <- pELFHdr->e_phoff
+    add   esi, BaseOfKernelFilePhyAddr;esi<-OffsetOfKernel+pELFHdr->e_phoff
+	.Begin:
+    mov   eax, [esi + 0]
+    cmp   eax, 0                      ; PT_NULL
+    jz    .NoAction
+    push  dword [esi + 010h]    ;size ;`.
+    mov   eax, [esi + 04h]            ; |
+    add   eax, BaseOfKernelFilePhyAddr; | memcpy((void*)(pPHdr->p_vaddr),
+    push  eax		    ;src  ; |      uchCode + pPHdr->p_offset,
+    push  dword [esi + 08h]     ;dst  ; |      pPHdr->p_filesz;
+    call  MemCpy                      ; |
+    add   esp, 12                     ;/
+	.NoAction:
+    add   esi, 020h                   ; esi += pELFHdr->e_phentsize
+    dec   ecx
+    jnz   .Begin
+
+    ret
+	
+	; Copy memory
+	MemCpy:
+	push	ebp
+	mov	ebp, esp
+
+	push	esi
+	push	edi
+	push	ecx
+
+	mov	edi, [ebp + 8]	; Destination
+	mov	esi, [ebp + 12]	; Source
+	mov	ecx, [ebp + 16]	; Counter
+	.1:
+	cmp	ecx, 0		; 判断计数器
+	jz	.2		; 计数器为零时跳出
+
+	mov	al, [ds:esi]		; ┓
+	inc	esi			; ┃
+					; ┣ 逐字节移动
+	mov	byte [es:edi], al	; ┃
+	inc	edi			; ┛
+
+	dec	ecx		; 计数器减一
+	jmp	.1		; 循环
+	.2:
+	mov	eax, [ebp + 8]	; 返回值
+
+	pop	ecx
+	pop	edi
+	pop	esi
+	mov	esp, ebp
+	pop	ebp
+
+	ret			; 函数结束，返回
 	
 	; Some value
 	NewOffsetOfKernel dd OffsetOfKernel
@@ -350,7 +420,6 @@
 	_szReturn:	db 0Ah, 0
 	; 变量
 	_dwMCRNumber:	dd 0	; Memory Check Result
-	_dwDispPos:	dd (80 * 6 + 0) * 2	; 屏幕第 6 行, 第 0 列
 	_dwMemSize:	dd 0
 	_ARDStruct:	; Address Range Descriptor Structure
 	_dwBaseAddrLow:		dd	0
@@ -359,12 +428,13 @@
 	_dwLengthHigh:		dd	0
 	_dwType:			dd	0
 	_MemChkBuf:	times	256	db	0
+	_dwDispPos:	dd (80 * 6 + 0) * 2	
 	;
 	;; 保护模式下使用这些符号
+	dwDispPos		equ	BaseOfLoaderPhyAddr + _dwDispPos
 	szMemChkTitle		equ	BaseOfLoaderPhyAddr + _szMemChkTitle
 	szRAMSize		equ	BaseOfLoaderPhyAddr + _szRAMSize
 	szReturn		equ	BaseOfLoaderPhyAddr + _szReturn
-	dwDispPos		equ	BaseOfLoaderPhyAddr + _dwDispPos
 	dwMemSize		equ	BaseOfLoaderPhyAddr + _dwMemSize
 	dwMCRNumber		equ	BaseOfLoaderPhyAddr + _dwMCRNumber
 	ARDStruct		equ	BaseOfLoaderPhyAddr + _ARDStruct

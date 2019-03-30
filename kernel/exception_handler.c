@@ -41,7 +41,7 @@ void    hwint14();
 void    hwint15();
 
 //init_prot
-void init_prot()
+void init_port()
 {
 	init_8259A();
 

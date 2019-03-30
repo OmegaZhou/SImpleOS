@@ -4,11 +4,12 @@
 	extern	cstart
 	extern	exception_handler
 	extern	spurious_irq
-	
+	extern  main
 	; global value
 	extern	gdt_ptr
 	extern	idt_ptr
 	extern	disp_pos
+	extern  irq_table
 	[SECTION .bss]
 	StackSpace		resb	2 * 1024
 	StackTop:		
@@ -58,18 +59,21 @@
 	jmp SELECTOR_KERNEL_CS:csinit
 	
 	csinit:
-	push 0
-	popfd
+	sti
+	jmp main
 	hlt
 	
 	
 	; 中断和异常 -- 硬件中断
 	; ---------------------------------
 	%macro  hwint_master    1
+		call    save
         push    %1
-        call    spurious_irq
+        ;call    [irq_table + 4*%1]
+		call spurious_irq
         add     esp, 4
-        hlt
+		;call    restart
+        iretd
 	%endmacro
 	; ---------------------------------
 
@@ -213,4 +217,17 @@
 	add	esp, 4*2	; 让栈顶指向 EIP，堆栈中从顶向下依次是：EIP、CS、EFLAGS
 	hlt
 
-	
+	save:
+	pushad
+	push ds
+	push es
+	push fs
+	push gs
+	ret
+
+	restart:
+	pop gs
+	pop fs
+	pop es
+	pop ds
+	popad

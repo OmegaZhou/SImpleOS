@@ -156,12 +156,6 @@ void init_idt_desc(unsigned char vector, unsigned char desc_type,
 	p_gate->offset_high = (base >> 16) & 0xFFFF;
 }
 
-
-void exception_handler(int vec_no, int err_code, int eip, int cs, int eflags)
-{
-	int i;
-	int text_color = 0x74; //set color
-
 	char * err_msg[] = { "#DE Divide Error",
 				"#DB RESERVED",
 				"¡ª  NMI Interrupt",
@@ -183,6 +177,13 @@ void exception_handler(int vec_no, int err_code, int eip, int cs, int eflags)
 				"#MC Machine Check",
 				"#XF SIMD Floating-Point Exception"
 	};
+
+void exception_handler(int vec_no, int err_code, int eip, int cs, int eflags)
+{
+	int i;
+	int text_color = 0x74; //set color
+
+
 
 	//clear five line on the screen
 	start_pos = 0;

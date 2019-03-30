@@ -67,13 +67,13 @@
 	; 中断和异常 -- 硬件中断
 	; ---------------------------------
 	%macro  hwint_master    1
-		call    save
+		call save
         push    %1
         ;call    [irq_table + 4*%1]
 		call spurious_irq
         add     esp, 4
 		;call    restart
-        iretd
+        ret
 	%endmacro
 	; ---------------------------------
 

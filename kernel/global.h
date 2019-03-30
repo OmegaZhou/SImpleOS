@@ -5,7 +5,8 @@
 #define	PRIVILEGE_KRNL	0
 #define	PRIVILEGE_TASK	1
 #define	PRIVILEGE_USER	3
-
+#define MAX_LENGTH 80
+#define MAX_HEIGHTH 24
 extern int start_pos;
 extern unsigned char gdt_ptr[6];
 extern DESCRIPTOR gdt[GDT_SIZE];

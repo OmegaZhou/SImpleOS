@@ -4,9 +4,7 @@
 void main()
 {
 	init_keyboard();
-	//printf_str("fsff");
-	read_key();
 	for (;;) {
-		
+		read_key();
 	}
 }

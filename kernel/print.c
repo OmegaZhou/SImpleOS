@@ -1,5 +1,5 @@
 #include "lib.h"
-
+#include "global.h"
 void printf_str(unsigned char* info)
 {
 	printf_color_str(info, 0x0f);
@@ -10,6 +10,15 @@ void printf_int(int num)
 	char out[16];
 	itoa(out, num);
 	printf_str(out);
+}
+
+void key_back()
+{
+	if (start_pos >= 2) {
+		start_pos -= 2;
+		printf_str(" ");
+		start_pos -= 2;
+	}
 }
 
 char* itoa(char* str, int num)
@@ -43,4 +52,15 @@ char* itoa(char* str, int num)
 	}
 	*str = '\0';
 	return st;
+}
+
+void judge_clean()
+{
+	if (start_pos == (MAX_HEIGHTH + 1)*MAX_LENGTH * 2) {
+		start_pos = 0;
+		for (int i = 0; i < (MAX_HEIGHTH + 1)*MAX_LENGTH * 2; ++i) {
+			printf_str(" ");
+		}
+		start_pos = 0;
+	}
 }

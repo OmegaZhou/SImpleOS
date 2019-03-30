@@ -5,7 +5,7 @@
 
 void cstart()
 {
-	start_pos = (80 * 15 + 0) * 2;
+	start_pos = (MAX_LENGTH * 15 + 0) * 2;
 	printf_str("cstart_begin\n");
 	memcpy(&gdt, (void*)(*((unsigned int*)(&gdt_ptr[2]))), *(unsigned short*)(&gdt_ptr[0]));
 	unsigned short* p_gdt_limit = (unsigned short*)(&gdt_ptr[0]);

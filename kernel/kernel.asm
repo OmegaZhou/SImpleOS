@@ -59,20 +59,32 @@
 	jmp SELECTOR_KERNEL_CS:csinit
 	
 	csinit:
-	sti
 	jmp main
 	hlt
 	
-	
+	INT_M_CTL	equ	0x20	; I/O port for interrupt controller         <Master>
+	INT_M_CTL_MASK	equ	0x21	; setting bits in this port disables ints   <Master>
+	INT_S_CTL	equ	0xA0	; I/O port for second interrupt controller  <Slave>
+	INT_S_CTL_MASK	equ	0xA1	; setting bits in this port disables ints   <Slave>
+
+	EOI		equ	0x20
+
 	; 中断和异常 -- 硬件中断
 	; ---------------------------------
 	%macro  hwint_master    1
-		call save
+		in	al, INT_M_CTL_MASK	; `.
+		or	al, (1 << %1)		;  | 屏蔽当前中断
+		out	INT_M_CTL_MASK, al	; /
+		mov	al, EOI			; `. 置EOI位
+		out	INT_M_CTL, al		; /
+		sti	; CPU在响应中断的过程中会自动关中断，这句之后就允许响应新的中断
         push    %1
-        ;call    [irq_table + 4*%1]
-		call spurious_irq
-        add     esp, 4
-		;call    restart
+        call    [irq_table + 4*%1]
+        pop	ecx			; /
+		cli
+		in	al, INT_M_CTL_MASK	; `.
+		and	al, ~(1 << %1)		;  | 恢复接受当前中断
+		out	INT_M_CTL_MASK, al	; /
         ret
 	%endmacro
 	; ---------------------------------

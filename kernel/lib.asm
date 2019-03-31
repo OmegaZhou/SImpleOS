@@ -2,10 +2,11 @@
 	extern start_pos
 
 	global memcpy
-	global printf_color_str
+	global printf_color_str_origin
 	global out_byte
 	global in_byte
 	global start_sti
+
 	[SECTION .text]
 	; void* memcpy(void* es:pDest, void* ds:pSrc, int iSize);
 	memcpy:
@@ -45,7 +46,7 @@
 	ret			
 	
 	; void printf_str(char* info,int color)
-	printf_color_str:
+	printf_color_str_origin:
 	push	ebp
 	mov	ebp, esp
 
@@ -76,7 +77,7 @@
 
 	.printf_str2:
 	mov	[start_pos], edi
-	call set_cursor
+	call set_cursor_by_start_pos
 	pop	ebp
 	ret
 	
@@ -102,9 +103,11 @@
 	sti
 	ret
 
-	set_cursor:
+	set_cursor_by_start_pos:
 	mov ebx, [start_pos]
 	shr ebx, 1
+	
+	set_cursor:
 	mov dx, 03d4h
 	mov al, 0eh
 	out dx, al

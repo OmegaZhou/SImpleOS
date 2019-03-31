@@ -1,5 +1,14 @@
 #include "lib.h"
 #include "global.h"
+
+extern void printf_color_str_origin(unsigned char* info, int color);
+
+void printf_color_str(unsigned char* info, int color)
+{
+	judge_clean(info);
+	printf_color_str_origin(info, color);
+}
+
 void printf_str(unsigned char* info)
 {
 	printf_color_str(info, 0x0f);
@@ -54,13 +63,26 @@ char* itoa(char* str, int num)
 	return st;
 }
 
-void judge_clean()
+void judge_clean(unsigned char* info)
 {
-	if (start_pos == (MAX_HEIGHTH + 1)*MAX_LENGTH * 2) {
-		start_pos = 0;
+	static char temp[(MAX_HEIGHTH + 1)*MAX_LENGTH * 2 + 1];
+	static int flag = 1;
+	if(flag){
 		for (int i = 0; i < (MAX_HEIGHTH + 1)*MAX_LENGTH * 2; ++i) {
-			printf_str(" ");
+			temp[i] = ' ';
 		}
+		temp[(MAX_HEIGHTH + 1)*MAX_LENGTH * 2] = '\0';
+		flag = 0;
+	}
+	int len = 0;
+	for (len = 0; info[len] != '\0'; ++len) {
+	}
+	
+	if (start_pos + len > (MAX_HEIGHTH + 1)*MAX_LENGTH * 2) {
 		start_pos = 0;
+		printf_color_str_origin(temp, 0x0f);
+		start_pos = 0;
+		
 	}
 }
+

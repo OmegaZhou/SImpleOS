@@ -5,7 +5,9 @@
 	global printf_color_str_origin
 	global out_byte
 	global in_byte
-	global start_sti
+	global start_int
+	global close_int
+	global get_port_value
 
 	[SECTION .text]
 	; void* memcpy(void* es:pDest, void* ds:pSrc, int iSize);
@@ -99,15 +101,18 @@
 	nop
 	ret
 	
-	start_sti:
+	start_int:
 	sti
+	ret
+
+	close_int:
+	cli
 	ret
 
 	set_cursor_by_start_pos:
 	mov ebx, [start_pos]
 	shr ebx, 1
-	
-	set_cursor:
+
 	mov dx, 03d4h
 	mov al, 0eh
 	out dx, al
@@ -121,4 +126,23 @@
 	inc dx
 	mov al, bl
 	out dx, al
+	ret
+
+	;unsigned short get_port_value(unsigned short port, unsigned char high, unsigned char low)
+	get_port_value:
+	mov dx, [esp + 4]
+	mov al, [esp + 8]
+	out dx, al
+	inc dx
+	in al, dx
+	mov bh, al
+
+	dec dx
+	mov al, [esp + 12]
+	out dx, al
+	inc dx
+	in al, dx
+	mov bl, al
+
+	mov ax, bx
 	ret

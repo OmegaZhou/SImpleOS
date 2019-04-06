@@ -1,5 +1,6 @@
 #include "lib.h"
 #include "i8259.h"
+#include "CRT_control.h"
 #define BUF_SIZE 256
 char buf[BUF_SIZE];
 int buf_rear;
@@ -22,6 +23,7 @@ static int shift_flag;
 static char temp[2];
 static int flag;
 static int e0_flag;
+
 void keyboadr_handler(int irq)
 {
 	flag = 1;
@@ -101,7 +103,7 @@ void keyboadr_handler(int irq)
 
 void read_key()
 {
-	start_sti();
+	start_int();
 	for (;;) {
 		if (flag) {
 			flag = 0;
@@ -114,6 +116,7 @@ void read_key()
 
 void init_keyboard()
 {
+	
 	e0_flag = 0;
 	flag = 0;
 	shift_flag = 0;
@@ -123,3 +126,7 @@ void init_keyboard()
 	irq_table[KEYBOARD_IRQ] = keyboadr_handler;
 }
 
+void cursor_up()
+{
+
+}

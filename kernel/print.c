@@ -1,12 +1,12 @@
 #include "lib.h"
 #include "global.h"
-
+#include "CRT_control.h"
 extern void printf_color_str_origin(unsigned char* info, int color);
 
 void printf_color_str(unsigned char* info, int color)
 {
-	judge_clean(info);
 	printf_color_str_origin(info, color);
+	judge_screen_local();
 }
 
 void printf_str(unsigned char* info)
@@ -27,6 +27,7 @@ void key_back()
 		start_pos -= 2;
 		printf_str(" ");
 		start_pos -= 2;
+		judge_screen_local();
 	}
 }
 
@@ -63,26 +64,13 @@ char* itoa(char* str, int num)
 	return st;
 }
 
-void judge_clean(unsigned char* info)
+void judge_screen_local(unsigned char* info)
 {
-	static char temp[(MAX_HEIGHTH + 1)*MAX_LENGTH * 2 + 1];
-	static int flag = 1;
-	if(flag){
-		for (int i = 0; i < (MAX_HEIGHTH + 1)*MAX_LENGTH * 2; ++i) {
-			temp[i] = ' ';
-		}
-		temp[(MAX_HEIGHTH + 1)*MAX_LENGTH * 2] = '\0';
-		flag = 0;
-	}
-	int len = 0;
-	for (len = 0; info[len] != '\0'; ++len) {
-	}
-	
-	if (start_pos + len > (MAX_HEIGHTH + 1)*MAX_LENGTH * 2) {
-		start_pos = 0;
-		printf_color_str_origin(temp, 0x0f);
-		start_pos = 0;
-		
+	unsigned short local = get_port_value(CRT_ADDR_PORT, SCREEN_START_ADDRESS_H, SCREEN_START_ADDRESS_L);
+	unsigned short cursor_local = get_port_value(CRT_ADDR_PORT, CURSOR_LOCAL_H, CURSOR_LOCAL_L);
+	if (cursor_local >= local + (MAX_HEIGHTH + 1)*MAX_LENGTH || (start_pos >= 0 && start_pos / 2 < local)) {
+		local = cursor_local / MAX_LENGTH * MAX_LENGTH - (MAX_HEIGHTH )*MAX_LENGTH;
+		set_CRT_port_value(SCREEN_START_ADDRESS_H, SCREEN_START_ADDRESS_L, local);
 	}
 }
 

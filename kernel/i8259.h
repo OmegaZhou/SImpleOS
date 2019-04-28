@@ -24,6 +24,6 @@
 typedef void(*irq_handler)(int irq);
 
 extern irq_handler irq_table[IRQ_SIZE];
-
+extern void add_irq(irq_handler, int irq);
 #endif // !I8259_H_
 

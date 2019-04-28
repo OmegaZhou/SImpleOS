@@ -22,6 +22,8 @@ extern unsigned short get_port_value(unsigned short port, unsigned char index_h,
 
 extern void out_byte(unsigned short port_num, unsigned char value);
 extern unsigned char in_byte(unsigned short port_num);
+extern void port_read(short port, void* buf, int n);
+extern void port_write(short port, void* buf, int n);
 extern void init_8259A();
 extern void spurious_irq(int irq);
 

@@ -116,14 +116,12 @@ void read_key()
 
 void init_keyboard()
 {
-	
 	e0_flag = 0;
 	flag = 0;
 	shift_flag = 0;
 	buf_rear = 0;
 	temp[1] = '\0';
-	out_byte(INT_M_CTL_MASK, 0xfd);
-	irq_table[KEYBOARD_IRQ] = keyboadr_handler;
+	add_irq(keyboadr_handler, KEYBOARD_IRQ);
 }
 
 void cursor_up()

@@ -26,3 +26,17 @@ void spurious_irq(int irq)
 	printf_int(irq);
 	printf_str("\n");
 }
+
+void add_irq(irq_handler handler, int irq)
+{
+	unsigned char mask = ~(1 << (irq % 8));
+	if (irq < 8) {
+		mask &= in_byte(INT_M_CTL_MASK);
+		out_byte(INT_M_CTL_MASK, mask);
+		irq_table[irq] = handler;
+	} else {
+		mask &= in_byte(INT_S_CTL_MASK);
+		out_byte(INT_S_CTL_MASK, mask);
+		irq_table[irq] = handler;
+	}
+}

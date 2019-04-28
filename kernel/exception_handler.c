@@ -1,7 +1,7 @@
 
-#include "lib.h"
-#include "global.h"
-#include "pm_struct.h"
+#include "include/lib.h"
+#include "include/global.h"
+#include "include/pm_struct.h"
 
 typedef void(*int_handler) ();
 

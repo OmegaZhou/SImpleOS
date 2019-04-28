@@ -1,5 +1,5 @@
-#include "lib.h"
-#include "i8259.h"
+#include "include/lib.h"
+#include "include/i8259.h"
 
 irq_handler irq_table[IRQ_SIZE];
 
@@ -29,14 +29,28 @@ void spurious_irq(int irq)
 
 void add_irq(irq_handler handler, int irq)
 {
+	irq_table[irq] = handler;
+}
+void disable_irq(int irq)
+{
+	unsigned char mask = (1 << (irq % 8));
+	if (irq < 8) {
+		mask |= in_byte(INT_M_CTL_MASK);
+		out_byte(INT_M_CTL_MASK, mask);
+	} else {
+		mask |= in_byte(INT_S_CTL_MASK);
+		out_byte(INT_S_CTL_MASK, mask);
+	}
+}
+void enable_irq(int irq)
+{
 	unsigned char mask = ~(1 << (irq % 8));
 	if (irq < 8) {
 		mask &= in_byte(INT_M_CTL_MASK);
 		out_byte(INT_M_CTL_MASK, mask);
-		irq_table[irq] = handler;
+		
 	} else {
 		mask &= in_byte(INT_S_CTL_MASK);
 		out_byte(INT_S_CTL_MASK, mask);
-		irq_table[irq] = handler;
 	}
 }

@@ -1,6 +1,6 @@
-#include "lib.h"
-#include "global.h"
-#include "CRT_control.h"
+#include "include/lib.h"
+#include "include/global.h"
+#include "include/CRT_control.h"
 extern void printf_color_str_origin(unsigned char* info, int color);
 
 void printf_color_str(unsigned char* info, int color)

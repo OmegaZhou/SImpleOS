@@ -1,6 +1,6 @@
-#include "pm_struct.h"
-#include "lib.h"
-#include "global.h"
+#include "include/pm_struct.h"
+#include "include/lib.h"
+#include "include/global.h"
 
 
 void cstart()

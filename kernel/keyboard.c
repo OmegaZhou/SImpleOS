@@ -1,6 +1,6 @@
-#include "lib.h"
-#include "i8259.h"
-#include "CRT_control.h"
+#include "include/lib.h"
+#include "include/i8259.h"
+#include "include/CRT_control.h"
 #define BUF_SIZE 256
 char buf[BUF_SIZE];
 int buf_rear;
@@ -103,6 +103,7 @@ void keyboadr_handler(int irq)
 
 void read_key()
 {
+	enable_irq(KEYBOARD_IRQ);
 	start_int();
 	for (;;) {
 		if (flag) {
@@ -111,7 +112,7 @@ void read_key()
 			break;
 		}
 	}
-
+	disable_irq(KEYBOARD_IRQ);
 }
 
 void init_keyboard()

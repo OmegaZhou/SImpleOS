@@ -2,7 +2,6 @@
 #include "include/global.h"
 #include "include/disk.h"
 #include "include/shell.h"
-#include <stdio.h>
 void main()
 {
 	init_keyboard();

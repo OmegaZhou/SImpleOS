@@ -5,7 +5,8 @@ void main()
 {
 	init_keyboard();
 	init_disk();
+	char re[256];
 	for (;;) {
-		read_key();
+		getline(re);
 	}
 }

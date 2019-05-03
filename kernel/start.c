@@ -6,7 +6,6 @@
 void cstart()
 {
 	start_pos = (MAX_LENGTH * 15 + 0) * 2;
-	printf_str("cstart_begin\n");
 	memcpy(&gdt, (void*)(*((unsigned int*)(&gdt_ptr[2]))), *(unsigned short*)(&gdt_ptr[0]));
 	unsigned short* p_gdt_limit = (unsigned short*)(&gdt_ptr[0]);
 	unsigned int* p_gdt_base = (unsigned int*)(&gdt_ptr[2]);
@@ -19,5 +18,4 @@ void cstart()
 	*p_idt_base = (unsigned int)&idt;
 
 	init_port();
-	printf_str("cstart_end\n");
 }

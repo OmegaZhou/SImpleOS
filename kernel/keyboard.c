@@ -2,11 +2,11 @@
 #include "include/i8259.h"
 #include "include/CRT_control.h"
 #define BUF_SIZE 256
-char buf[BUF_SIZE];
-int buf_rear;
-
 #define BACKSPACE 0x08
 #define SHIFT 0x06
+
+char buf[BUF_SIZE];
+int buf_rear;
 static char code_map[0x60] = { 0 ,	 0 ,	'1',	'2',	'3',	'4',	'5',	'6',	'7',	'8',	'9',	'0',	'-',	'=',	BACKSPACE,	'\t',
 							'q',	'w',	'e',	'r',	't',	'y',	'u',	'i',	'o',	'p',	'[',	']',	'\n',	 0 ,	'a',		's',
 							'd',	'f',	'g',	'h',	'j',	'k',	'l',	';',	'\'',	'`',	SHIFT,	'\\',	'z',	'x',	'c',		'v',
@@ -95,24 +95,8 @@ void keyboadr_handler(int irq)
 			++shift_flag;
 		}
 	}
-	if (buf_rear != 0 && buf[buf_rear - 1] == '\n') {
-		buf_rear = 0;
-	}
+	
 
-}
-
-void read_key()
-{
-	enable_irq(KEYBOARD_IRQ);
-	start_int();
-	for (;;) {
-		if (flag) {
-			flag = 0;
-			printf_str("");
-			break;
-		}
-	}
-	disable_irq(KEYBOARD_IRQ);
 }
 
 void init_keyboard()
@@ -125,7 +109,71 @@ void init_keyboard()
 	add_irq(keyboadr_handler, KEYBOARD_IRQ);
 }
 
-void cursor_up()
+void clear_buf()
 {
+	buf_rear = 0;
+}
 
+char read_key()
+{
+	enable_irq(KEYBOARD_IRQ);
+	start_int();
+	for (;;) {
+		if (flag) {
+			flag = 0;
+			printf_str("");
+			break;
+		}
+	}
+	disable_irq(KEYBOARD_IRQ);
+	if (buf_rear != 0) {
+		return buf[buf_rear - 1];
+	} else {
+		return 0;
+	}
+}
+
+int readline(char *re)
+{
+	char c;
+	int len = buf_rear;
+	while ((c = read_key()) != '\n'){
+		;
+	}
+	for (int i = 0; i < buf_rear; ++i) {
+		*re = buf[i];
+		++re;
+	}
+	*re = '\0';
+	clear_buf();
+	return len;
+}
+
+void getline(char* re)
+{
+	int len=readline(re);
+	*(re + len - 1) = '\0';
+}
+
+char getchar()
+{
+	static char temp_buf[BUF_SIZE];
+	static int temp_front = 0;
+	static int temp_rear = 0;
+	if (temp_front == temp_rear) {
+		temp_rear = readline(temp_buf);
+		temp_front = 0;
+	}
+	char c = temp_buf[temp_front];
+	temp_front++;
+	return c;
+}
+
+char getch()
+{
+	char re = read_key();
+	if (buf_rear > 0) {
+		--buf_rear;
+	}
+	return re;
 }

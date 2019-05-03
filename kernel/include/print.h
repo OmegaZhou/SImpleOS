@@ -1,6 +1,5 @@
 #ifndef PRINT_H_
 #define PRINT_H_
-extern char* itoa(char* str, int num);
 extern void printf_str(unsigned char* info);
 extern void printf_int(int num);
 extern void printf_color_str(unsigned char* info, int color);

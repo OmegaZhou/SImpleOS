@@ -1,9 +1,7 @@
 #include "include/lib.h"
 #include "include/i8259.h"
 #include "include/CRT_control.h"
-#define BUF_SIZE 256
-#define BACKSPACE 0x08
-#define SHIFT 0x06
+#include "include/keyboard.h"
 
 char buf[BUF_SIZE];
 int buf_rear;
@@ -136,7 +134,6 @@ char read_key()
 int readline(char *re)
 {
 	char c;
-	int len = buf_rear;
 	while ((c = read_key()) != '\n'){
 		;
 	}
@@ -145,6 +142,7 @@ int readline(char *re)
 		++re;
 	}
 	*re = '\0';
+	int len = buf_rear;
 	clear_buf();
 	return len;
 }

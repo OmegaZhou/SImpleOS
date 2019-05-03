@@ -1,6 +1,7 @@
 #include "include/lib.h"
 #include "include/global.h"
 #include "include/CRT_control.h"
+#include "include/string.h"
 extern void printf_color_str_origin(unsigned char* info, int color);
 
 void printf_color_str(unsigned char* info, int color)
@@ -17,7 +18,7 @@ void printf_str(unsigned char* info)
 void printf_int(int num)
 {
 	char out[16];
-	itoa(out, num);
+	itoa_with_16(out, num);
 	printf_str(out);
 }
 
@@ -29,39 +30,6 @@ void key_back()
 		start_pos -= 2;
 		judge_screen_local();
 	}
-}
-
-char* itoa(char* str, int num)
-{
-	char* st = str;
-	int k;
-	int temp;
-	*str = '0';
-	++str;
-	*str = 'x';
-	++str;
-	if (num == 0) {
-		*str = '0';
-		++str;
-	} else {
-		temp = 1;
-		while (num/16 >= temp) {
-			temp *= 16;
-		}
-		while (temp) {
-			k = num / temp;
-			if (k > 9) {
-				*str = 'A' + k - 10;
-			} else {
-				*str = '0' + k;
-			}
-			++str;
-			num %= temp;
-			temp /= 16;
-		}
-	}
-	*str = '\0';
-	return st;
 }
 
 void judge_screen_local(unsigned char* info)

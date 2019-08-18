@@ -294,11 +294,11 @@
 	mov es, ax
 	mov edi, PageDirBase
 	xor eax, eax
-	mov eax, PageTblBase | PG_P | PG_USU | PG_RWW
+	mov eax, 0 | PG_P | PG_USS | PG_RWW | PG_PSE
 	
 	.1: 
 	stosd
-	add eax, 4096
+	add eax, 0x400000
 	loop .1
 	
 	pop eax
@@ -315,6 +315,10 @@
 	add eax, 4096
 	loop .2
 	
+	mov eax, cr4
+	or eax, CR4_PSE
+	mov cr4, eax
+
 	mov	eax, PageDirBase
 	mov	cr3, eax
 	mov	eax, cr0

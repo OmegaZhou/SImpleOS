@@ -6,5 +6,6 @@ void main()
 {
 	init_keyboard();
 	init_disk();
+	init_fs();
 	init_shell();
 }

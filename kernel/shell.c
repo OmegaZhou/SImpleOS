@@ -1,26 +1,27 @@
-#include "include/keyboard.h"
-#include "include/print.h"
 #include "include/shell.h"
-#include "include/system_call.h"
-#include "include/string.h"
 #include "include/type.h"
-#define MAX_NAME_SIZE 12
-struct Command
-{
-	char name[MAX_NAME_SIZE];
-	main_func func;
-};
-struct Command command_table[] = { {"hello_world",hello_world} };
+#include "include/print.h"
+#include "include/string.h"
+#include "include/keyboard.h"
+#include "include/sh_comm.h"
+
 void get_command()
 {
-	static char command[BUF_SIZE];
+	static char command[512] = { 0 };
 	static char* argv[PARAM_SIZE];
-	getline(command);
-	main_func command_pointer;
+	char c;
+	int size=0;
+	while((c=getchar())!='\n'){
+		command[size++]=c;
+	}
+	command[size]='\0';
+	//getline(command);
+	struct Command* command_pointer;
 	int command_len = str_len(command);
 	int start_flag = 0;
 	int end_flag = 0;
 	int argc = 0;
+	argv[0]=command;
 	for (int i = 0; i < command_len; ++i) {
 		if (!isspace(command[i])) {
 			if (start_flag == 0) {
@@ -37,19 +38,21 @@ void get_command()
 			}
 		}
 	}
-	int command_table_size = sizeof(command_table) / sizeof(struct Command);
-	for (int i = 0; i < command_table_size; ++i) {
-		if (str_comp(command_table[i].name, argv[0]) == 0) {
-			command_pointer = command_table[i].func;
-			(*command_pointer)(argc, argv);
-			return;
-		}
+	//printf_str(command);
+	if (str_comp("", argv[0]) == 0) {
+		return;
+	}
+	command_pointer=get_func(argv[0]);
+	if(command_pointer){
+		(*(command_pointer->func))(argc, argv);
+		return;
 	}
 	printf_str("Command not found\n");
 }
 
 void init_shell()
 {
+	printf_str("Use \"help\" command to get command information\n");
 	for (;;) {
 		printf_str("Zhou>");
 		get_command();

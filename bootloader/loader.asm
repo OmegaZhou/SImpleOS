@@ -302,18 +302,6 @@
 	loop .1
 	
 	pop eax
-	mov ebx, 1024
-	mul ebx
-	mov ecx, eax
-	mov edi,eax
-	mov edi, PageTblBase
-	xor eax, eax
-	mov eax, PG_P | PG_USU | PG_RWW
-	
-	.2:
-	stosd
-	add eax, 4096
-	loop .2
 	
 	mov eax, cr4
 	or eax, CR4_PSE

@@ -158,7 +158,7 @@ void init_idt_desc(unsigned char vector, unsigned char desc_type,
 
 	char * err_msg[] = { "#DE Divide Error",
 				"#DB RESERVED",
-				"¡ª  NMI Interrupt",
+				"#MI  NMI Interrupt",
 				"#BP Breakpoint",
 				"#OF Overflow",
 				"#BR BOUND Range Exceeded",
@@ -171,7 +171,7 @@ void init_idt_desc(unsigned char vector, unsigned char desc_type,
 				"#SS Stack-Segment Fault",
 				"#GP General Protection",
 				"#PF Page Fault",
-				"¡ª  (Intel reserved. Do not use.)",
+				"  (Intel reserved. Do not use.)",
 				"#MF x87 FPU Floating-Point Error (Math Fault)",
 				"#AC Alignment Check",
 				"#MC Machine Check",
@@ -183,14 +183,7 @@ void exception_handler(int vec_no, int err_code, int eip, int cs, int eflags)
 	int i;
 	int text_color = 0x74; //set color
 
-
-
-	//clear five line on the screen
-	start_pos = 0;
-	for (i = 0; i < 80 * 5; i++) {
-		printf_str(" ");
-	}
-	start_pos = 0;
+	printf_str("\n");
 
 	printf_color_str("Exception! --> ", text_color);
 	printf_color_str(err_msg[vec_no], text_color);
